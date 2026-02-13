@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateJWT, generateAuthorizationCode } from '@/lib/auth'
+import { generateAuthorizationCode } from '@/lib/auth'
 import { query } from '@/lib/database'
 
 /**
