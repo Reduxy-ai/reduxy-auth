@@ -34,24 +34,17 @@ export async function POST(request: NextRequest) {
         // Remove password from user object
         const { password: _, ...userWithoutPassword } = user
 
-        // Create JWT token
-        const token = await createJWT({
-            userId: user.id,
-            email: user.email,
-            plan: user.plan
-        })
-
-        // Set cookie
+        // Create response
         const response = NextResponse.json({
-            user: userWithoutPassword,
-            token
+            user: userWithoutPassword
         })
 
-        response.cookies.set('reduxy_auth_token', token, {
+        // Set shared session cookie (used by website, dashboard, auth service)
+        response.cookies.set('reduxy_auth_session', user.id, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            domain: process.env.COOKIE_DOMAIN || undefined,
+            sameSite: 'none', // 'none' required for cross-site cookies
+            domain: process.env.COOKIE_DOMAIN || '.reduxy.ai',
             maxAge: 60 * 60 * 24 * 7, // 7 days
             path: '/'
         })

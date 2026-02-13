@@ -1,34 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyJWT } from '@/lib/auth'
 import { query } from '@/lib/database'
 
 /**
+ * Add CORS headers to response
+ */
+function addCorsHeaders(response: NextResponse, request: NextRequest) {
+  response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*')
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  return response
+}
+
+/**
+ * Handle CORS preflight request
+ */
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
+    },
+  })
+}
+
+/**
  * GET /api/auth/me
- * Get current user info from JWT token
- * Used to verify session and get fresh user data
+ * Get current user info from session cookie
+ * Used by website and dashboard to verify session
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookie or Authorization header
-    const cookieToken = request.cookies.get('reduxy_auth_token')?.value
-    const authHeader = request.headers.get('Authorization')
-    const headerToken = authHeader?.replace('Bearer ', '')
+    // Get user ID from session cookie
+    const sessionCookie = request.cookies.get('reduxy_auth_session')?.value
 
-    const token = cookieToken || headerToken
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'No authentication token provided' },
-        { status: 401 }
-      )
-    }
-
-    // Verify JWT
-    const payload = await verifyJWT(token)
-    if (!payload || !payload.userId) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
+    if (!sessionCookie) {
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'Not authenticated' },
+          { status: 401 }
+        ),
+        request
       )
     }
 
@@ -49,35 +62,44 @@ export async function GET(request: NextRequest) {
       FROM users
       WHERE id = $1
       `,
-      [payload.userId]
+      [sessionCookie]
     )
 
     if (users.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        ),
+        request
       )
     }
 
     const user = users[0]
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        plan: user.plan,
-        credits_remaining: user.credits_remaining,
-        credits_total: user.credits_total,
-        credits_reset_at: user.credits_reset_at,
-      }
-    })
+    return addCorsHeaders(
+      NextResponse.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          plan: user.plan,
+          credits_remaining: user.credits_remaining,
+          credits_total: user.credits_total,
+          credits_reset_at: user.credits_reset_at,
+        }
+      }),
+      request
+    )
   } catch (error) {
     console.error('Error getting user info:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return addCorsHeaders(
+      NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      ),
+      request
     )
   }
 }

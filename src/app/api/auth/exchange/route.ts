@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/database'
 
 /**
+ * Add CORS headers to response
+ */
+function addCorsHeaders(response: NextResponse, request: NextRequest) {
+  response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*')
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  return response
+}
+
+/**
+ * Handle CORS preflight request
+ */
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
+    },
+  })
+}
+
+/**
  * POST /api/auth/exchange
  * Exchange authorization code for user info
  * Called by website/dashboard after redirect with code
@@ -11,9 +35,12 @@ export async function POST(request: NextRequest) {
     const { code } = await request.json()
 
     if (!code) {
-      return NextResponse.json(
-        { error: 'Authorization code is required' },
-        { status: 400 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'Authorization code is required' },
+          { status: 400 }
+        ),
+        request
       )
     }
 
@@ -34,9 +61,12 @@ export async function POST(request: NextRequest) {
     )
 
     if (authCodes.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid authorization code' },
-        { status: 401 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'Invalid authorization code' },
+          { status: 401 }
+        ),
+        request
       )
     }
 
@@ -44,17 +74,23 @@ export async function POST(request: NextRequest) {
 
     // Check if code has been used
     if (authCode.used) {
-      return NextResponse.json(
-        { error: 'Authorization code has already been used' },
-        { status: 401 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'Authorization code has already been used' },
+          { status: 401 }
+        ),
+        request
       )
     }
 
     // Check if code has expired
     if (new Date(authCode.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: 'Authorization code has expired' },
-        { status: 401 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'Authorization code has expired' },
+          { status: 401 }
+        ),
+        request
       )
     }
 
@@ -89,16 +125,19 @@ export async function POST(request: NextRequest) {
     )
 
     if (users.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        ),
+        request
       )
     }
 
     const user = users[0]
 
-    // Return user info
-    return NextResponse.json({
+    // Create response with user info
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -110,11 +149,26 @@ export async function POST(request: NextRequest) {
         credits_reset_at: user.credits_reset_at,
       }
     })
+
+    // Set shared auth cookie
+    response.cookies.set('reduxy_auth_session', user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // Changed from 'lax' to 'none' for cross-site cookies
+      domain: process.env.COOKIE_DOMAIN || '.reduxy.ai',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/'
+    })
+
+    return addCorsHeaders(response, request)
   } catch (error) {
     console.error('Error exchanging authorization code:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return addCorsHeaders(
+      NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      ),
+      request
     )
   }
 }
