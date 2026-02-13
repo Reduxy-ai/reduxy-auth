@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Create new user in database
+        // Create new user in database (password already excluded from return value)
         const user = await createUserInDB({
             email,
             password,
@@ -38,12 +38,9 @@ export async function POST(request: NextRequest) {
             plan
         })
 
-        // Remove password from user object
-        const { password: _, ...userWithoutPassword } = user
-
         // Create response
         const response = NextResponse.json({
-            user: userWithoutPassword
+            user
         })
 
         // Set shared session cookie (used by website, dashboard, auth service)
