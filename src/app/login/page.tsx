@@ -51,11 +51,15 @@ function LoginContent() {
                 return
             }
 
-            // Call local login API
+            // Call local login API with redirect_uri
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(result.data),
+                credentials: 'include',
+                body: JSON.stringify({
+                    ...result.data,
+                    redirect_uri: redirectUri
+                }),
             })
 
             const data = await response.json()
@@ -66,26 +70,8 @@ function LoginContent() {
                 return
             }
 
-            // Login successful, generate auth code
-            const user = data.user
-            const codeResponse = await fetch('/api/auth/generate-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: user.id, redirect_uri: redirectUri }),
-            })
-
-            if (!codeResponse.ok) {
-                setErrors({ general: 'Login succeeded but failed to generate auth code' })
-                setLoading(false)
-                return
-            }
-
-            const { code } = await codeResponse.json()
-
-            // Redirect back to caller with code
-            const callbackUrl = new URL(redirectUri)
-            callbackUrl.searchParams.set('code', code)
-            window.location.href = callbackUrl.toString()
+            // Login successful, cookie is set, redirect to original location
+            window.location.href = data.redirect_uri
         } catch (error) {
             setErrors({ general: 'An unexpected error occurred' })
             setLoading(false)

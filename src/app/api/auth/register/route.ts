@@ -3,11 +3,36 @@ import { createUserInDB, findUserByEmailInDB } from '@/lib/database-server'
 
 export async function POST(request: NextRequest) {
     try {
-        const { email, password, firstName, lastName, company, plan, agreeToTerms } = await request.json()
+        const { email, password, firstName, lastName, company, plan, agreeToTerms, redirect_uri } = await request.json()
 
         if (!email || !password || !firstName || !lastName || !plan) {
             return NextResponse.json(
                 { error: 'All required fields must be provided' },
+                { status: 400 }
+            )
+        }
+
+        if (!redirect_uri) {
+            return NextResponse.json(
+                { error: 'redirect_uri is required' },
+                { status: 400 }
+            )
+        }
+
+        // Validate redirect_uri is from allowed domain
+        const allowedDomains = [
+            'https://www.reduxy.ai',
+            'https://reduxy.ai',
+            'https://dashboard.reduxy.ai',
+            'http://localhost:3000',
+            'http://localhost:3001'
+        ]
+
+        const isAllowed = allowedDomains.some(domain => redirect_uri.startsWith(domain))
+
+        if (!isAllowed) {
+            return NextResponse.json(
+                { error: 'Invalid redirect_uri' },
                 { status: 400 }
             )
         }
@@ -40,7 +65,8 @@ export async function POST(request: NextRequest) {
 
         // Create response
         const response = NextResponse.json({
-            user
+            success: true,
+            redirect_uri
         })
 
         // Set shared session cookie (used by website, dashboard, auth service)

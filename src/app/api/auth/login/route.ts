@@ -1,14 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findUserByEmailInDB } from '@/lib/database-server'
-import { createJWT, verifyPassword } from '@/lib/auth'
+import { verifyPassword } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
     try {
-        const { email, password } = await request.json()
+        const { email, password, redirect_uri } = await request.json()
 
         if (!email || !password) {
             return NextResponse.json(
                 { error: 'Email and password are required' },
+                { status: 400 }
+            )
+        }
+
+        if (!redirect_uri) {
+            return NextResponse.json(
+                { error: 'redirect_uri is required' },
+                { status: 400 }
+            )
+        }
+
+        // Validate redirect_uri is from allowed domain
+        const allowedDomains = [
+            'https://www.reduxy.ai',
+            'https://reduxy.ai',
+            'https://dashboard.reduxy.ai',
+            'http://localhost:3000',
+            'http://localhost:3001'
+        ]
+
+        const redirectUrl = new URL(redirect_uri)
+        const isAllowed = allowedDomains.some(domain => redirect_uri.startsWith(domain))
+
+        if (!isAllowed) {
+            return NextResponse.json(
+                { error: 'Invalid redirect_uri' },
                 { status: 400 }
             )
         }
@@ -31,12 +57,10 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Remove password from user object
-        const { password: _, ...userWithoutPassword } = user
-
-        // Create response
+        // Create success response
         const response = NextResponse.json({
-            user: userWithoutPassword
+            success: true,
+            redirect_uri
         })
 
         // Set shared session cookie (used by website, dashboard, auth service)

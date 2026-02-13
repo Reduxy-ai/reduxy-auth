@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,8 @@ import { registerSchema, type RegisterFormData } from "@/lib/validations"
 import { PLAN_DETAILS, type MembershipPlan } from "@/types/auth"
 import { Check, ArrowLeft, Loader2, Zap, Rocket, Crown, Building2, TrendingUp, Shield, AlertCircle } from "lucide-react"
 
-export default function RegisterPage() {
+function RegisterContent() {
+    const searchParams = useSearchParams()
     const [step, setStep] = useState<'plan' | 'details'>('plan')
     const [selectedPlan, setSelectedPlan] = useState<MembershipPlan>('starter')
     const [formData, setFormData] = useState<Partial<RegisterFormData>>({
@@ -51,8 +52,7 @@ export default function RegisterPage() {
 
         try {
             // Get redirect_uri from URL params
-            const params = new URLSearchParams(window.location.search)
-            const redirectUri = params.get('redirect_uri')
+            const redirectUri = searchParams.get('redirect_uri')
 
             if (!redirectUri) {
                 setErrors({ general: 'Missing redirect_uri parameter' })
@@ -71,11 +71,15 @@ export default function RegisterPage() {
                 return
             }
 
-            // Call local register API
+            // Call local register API with redirect_uri
             const response = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(result.data),
+                credentials: 'include',
+                body: JSON.stringify({
+                    ...result.data,
+                    redirect_uri: redirectUri
+                }),
             })
 
             const data = await response.json()
@@ -86,26 +90,8 @@ export default function RegisterPage() {
                 return
             }
 
-            // Registration successful, generate auth code
-            const user = data.user
-            const codeResponse = await fetch('/api/auth/generate-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: user.id, redirect_uri: redirectUri }),
-            })
-
-            if (!codeResponse.ok) {
-                setErrors({ general: 'Registration succeeded but failed to generate auth code' })
-                setLoading(false)
-                return
-            }
-
-            const { code } = await codeResponse.json()
-
-            // Redirect back to caller with code
-            const callbackUrl = new URL(redirectUri)
-            callbackUrl.searchParams.set('code', code)
-            window.location.href = callbackUrl.toString()
+            // Registration successful, cookie is set, redirect to original location
+            window.location.href = data.redirect_uri
         } catch (error) {
             setErrors({ general: 'An unexpected error occurred' })
         } finally {
@@ -429,7 +415,7 @@ export default function RegisterPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Already have an account?{" "}
                                     <Link
-                                        href="/login"
+                                        href={`/login?redirect_uri=${searchParams.get('redirect_uri') || ''}`}
                                         className="text-purple-600 hover:text-purple-500 font-medium hover:underline"
                                     >
                                         Sign in instead
@@ -441,5 +427,17 @@ export default function RegisterPage() {
                 </div>
             </div>
         </div>
+    )
+}
+
+export default function RegisterPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            </div>
+        }>
+            <RegisterContent />
+        </Suspense>
     )
 } 

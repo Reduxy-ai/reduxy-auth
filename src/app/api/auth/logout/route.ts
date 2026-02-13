@@ -30,7 +30,13 @@ export async function OPTIONS(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const response = NextResponse.json({ success: true })
+    const { redirect_uri } = await request.json()
+    const finalRedirectUri = redirect_uri || 'https://www.reduxy.ai'
+
+    const response = NextResponse.json({
+      success: true,
+      redirect_uri: finalRedirectUri
+    })
 
     // Clear the shared session cookie
     response.cookies.set('reduxy_auth_session', '', {
