@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/database'
+import { query } from '@/lib/database-server'
 
 /**
  * Add CORS headers to response
@@ -46,26 +46,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get fresh user data from database
-    const users = await query<{
-      id: string
-      email: string
-      first_name: string
-      last_name: string
-      plan: string
-      credits_remaining: number
-      credits_total: number
-      credits_reset_at: string | null
-    }>(
-      `
-      SELECT id, email, first_name, last_name, plan,
-             credits_remaining, credits_total, credits_reset_at
-      FROM users
-      WHERE id = $1
-      `,
+    const result = await query(
+      `SELECT id, email, first_name, last_name, plan, company, is_email_verified, created_at, updated_at
+       FROM users
+       WHERE id = $1`,
       [sessionCookie]
     )
 
-    if (users.length === 0) {
+    if (result.rows.length === 0) {
       return addCorsHeaders(
         NextResponse.json(
           { error: 'User not found' },
@@ -75,7 +63,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const user = users[0]
+    const user = result.rows[0]
 
     return addCorsHeaders(
       NextResponse.json({
@@ -85,9 +73,14 @@ export async function GET(request: NextRequest) {
           firstName: user.first_name,
           lastName: user.last_name,
           plan: user.plan,
-          credits_remaining: user.credits_remaining,
-          credits_total: user.credits_total,
-          credits_reset_at: user.credits_reset_at,
+          company: user.company,
+          isEmailVerified: user.is_email_verified,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+          // Add default values for credits (can be updated later if needed)
+          credits_remaining: 1000000,
+          credits_total: 1000000,
+          credits_reset_at: null,
         }
       }),
       request
